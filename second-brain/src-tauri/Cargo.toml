@@ -1,0 +1,29 @@
+[package]
+name = "second-brain"
+version = "0.1.0"
+description = "Second Brain OS — local-first capture + AI processing desktop app"
+authors = ["you"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix is necessary on Windows to avoid a conflict with the bin name.
+# See https://github.com/rust-lang/cargo/issues/8519
+name = "second_brain_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri                        = { version = "2", features = ["tray-icon"] }
+tauri-plugin-sql             = { version = "2", features = ["sqlite"] }
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-fs              = "2"
+tauri-plugin-notification    = "2"
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-opener          = "2"
+serde                        = { version = "1", features = ["derive"] }
+serde_json                   = "1"
+tokio                        = { version = "1", features = ["full"] }
