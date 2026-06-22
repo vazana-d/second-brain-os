@@ -36,6 +36,18 @@ export async function listCommitments(): Promise<Commitment[]> {
   );
 }
 
+/** Set (or clear, with null) the implied deadline on a commitment. */
+export async function setCommitmentDeadline(
+  id: string,
+  deadline: string | null,
+): Promise<void> {
+  const db = await getDb();
+  await db.execute("UPDATE commitments SET implied_deadline = ? WHERE id = ?", [
+    deadline && deadline.trim() ? deadline : null,
+    id,
+  ]);
+}
+
 /** Move a commitment through its lifecycle. fulfilled stamps fulfilled_at. */
 export async function setCommitmentStatus(
   id: string,

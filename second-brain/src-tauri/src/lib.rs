@@ -4,6 +4,53 @@
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
+/// True when the process was launched by the overnight job (Phase 6).
+fn launched_for_brief() -> bool {
+    std::env::args().any(|a| a == "--run-brief")
+}
+
+/// Exposed to the frontend so it can switch into headless brief mode.
+#[tauri::command]
+fn is_brief_run() -> bool {
+    launched_for_brief()
+}
+
+/// Quit the app — called by the frontend once the unattended brief is written.
+#[tauri::command]
+fn quit_app(app: AppHandle) {
+    app.exit(0);
+}
+
+/// Register (or refresh) a Windows Task Scheduler job that runs this exe with
+/// `--run-brief` every morning at 05:00. Idempotent (`/F` overwrites), runs in
+/// the current user's context so it needs no elevation. BUILD_PLAN Phase 6
+/// chose Task Scheduler over an in-app 5am loop, which dies when the laptop sleeps.
+#[tauri::command]
+fn register_daily_brief() -> Result<String, String> {
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let tr = format!("\"{}\" --run-brief", exe.display());
+    let output = std::process::Command::new("schtasks")
+        .args([
+            "/Create",
+            "/TN",
+            "SecondBrainDailyBrief",
+            "/TR",
+            &tr,
+            "/SC",
+            "DAILY",
+            "/ST",
+            "05:00",
+            "/F",
+        ])
+        .output()
+        .map_err(|e| e.to_string())?;
+    if output.status.success() {
+        Ok(exe.display().to_string())
+    } else {
+        Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+    }
+}
+
 /// Force `win` to the foreground and give it keyboard focus on Windows.
 ///
 /// A window summoned from a global shortcut doesn't own the foreground, so a
@@ -98,9 +145,20 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(move |app| {
             app.global_shortcut().register(capture_shortcut)?;
+            // Overnight brief run: keep the window hidden — the frontend writes
+            // the brief and then calls quit_app. A brief flash at 5am is fine.
+            if launched_for_brief() {
+                if let Some(win) = app.get_webview_window("main") {
+                    let _ = win.hide();
+                }
+            }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![])
+        .invoke_handler(tauri::generate_handler![
+            is_brief_run,
+            quit_app,
+            register_daily_brief
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
