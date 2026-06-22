@@ -38,7 +38,7 @@ export default function App() {
           ))}
         </ul>
         <div className="sidebar-footer">
-          <span className="build-tag">Step 1 — scaffold</span>
+          <span className="build-tag">Step 2 — capture bar</span>
         </div>
       </nav>
 

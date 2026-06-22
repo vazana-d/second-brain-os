@@ -3593,6 +3593,7 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-plugin-sql",
  "tokio",
+ "windows",
 ]
 
 [[package]]
