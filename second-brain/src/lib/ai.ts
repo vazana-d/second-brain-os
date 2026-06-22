@@ -53,6 +53,42 @@ export function hasApiKey(): boolean {
   return getApiKey() !== null;
 }
 
+/** True for Gemini's per-minute / quota rate-limit errors (HTTP 429). */
+function isRateLimit(err: unknown): boolean {
+  const m = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  return (
+    m.includes("429") ||
+    m.includes("rate limit") ||
+    m.includes("resource_exhausted") ||
+    m.includes("too many requests") ||
+    m.includes("quota")
+  );
+}
+
+/**
+ * Retry `fn` on rate-limit errors with exponential backoff. The free tier caps
+ * Gemini Flash at ~5 requests/minute, so a burst (e.g. clearing the startup
+ * backlog) trips 429s; waiting a few seconds clears the per-minute window.
+ * Non-rate-limit errors throw immediately. A daily-quota exhaustion will still
+ * fail after the retries — the capture stays unprocessed and retries next launch.
+ */
+export async function withRateLimitRetry<T>(fn: () => Promise<T>, label = "gemini"): Promise<T> {
+  const delaysMs = [3000, 10000, 25000];
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= delaysMs.length; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (!isRateLimit(err) || attempt === delaysMs.length) throw err;
+      const wait = delaysMs[attempt];
+      console.warn(`${label}: rate-limited, retrying in ${wait}ms (attempt ${attempt + 1})`);
+      await new Promise((r) => setTimeout(r, wait));
+    }
+  }
+  throw lastErr;
+}
+
 function buildPrompt(
   rawContent: string,
   projects: { id: string; name: string }[],
@@ -137,6 +173,9 @@ export async function extractEntities(
     generationConfig: { responseMimeType: "application/json", temperature: 0.2 },
   });
 
-  const result = await model.generateContent(buildPrompt(rawContent, projects, context));
+  const result = await withRateLimitRetry(
+    () => model.generateContent(buildPrompt(rawContent, projects, context)),
+    "extraction",
+  );
   return normalize(parseJson(result.response.text()));
 }

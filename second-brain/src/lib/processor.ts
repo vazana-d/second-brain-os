@@ -11,6 +11,7 @@
 import { emit } from "@tauri-apps/api/event";
 import { getDb } from "./db";
 import { extractEntities, hasApiKey } from "./ai";
+import { embedText, retrieveByVector, storeEmbedding } from "./embeddings";
 
 /** Broadcast so any open view (e.g. Inbox) refreshes after the DB changes. */
 export const CAPTURES_CHANGED = "captures:changed";
@@ -95,7 +96,20 @@ export async function processCapture(id: string): Promise<void> {
       "SELECT id, name FROM projects WHERE status = 'active'",
     );
 
-    const ex = await extractEntities(cap.raw_content, projects);
+    // Embed the capture once, up front: the same vector both grounds extraction
+    // (Phase 4) and gets stored for future search — no second identical embed.
+    // Best effort: if embedding fails, extract without context rather than block.
+    let selfVec: number[] | null = null;
+    let context: string[] = [];
+    try {
+      selfVec = await embedText(cap.raw_content);
+      const hits = await retrieveByVector(selfVec, 5, id);
+      context = hits.filter((h) => h.score > 0.5).map((h) => `- ${h.raw_content}`);
+    } catch (err) {
+      console.error("embedding/retrieval failed for", id, err);
+    }
+
+    const ex = await extractEntities(cap.raw_content, projects, context);
 
     // Disposable derived rows: clear this capture's, then regenerate.
     await db.execute("DELETE FROM tasks WHERE capture_id = ?", [id]);
@@ -140,6 +154,16 @@ export async function processCapture(id: string): Promise<void> {
 
     for (const p of ex.people) {
       if (p.name?.trim()) await upsertPerson(db, p.name.trim(), p.context ?? null);
+    }
+
+    // Persist the vector computed above so future captures (and Search) can
+    // find this one by meaning. A failure here is logged, not fatal.
+    if (selfVec) {
+      try {
+        await storeEmbedding(id, selfVec);
+      } catch (err) {
+        console.error("storing embedding failed for", id, err);
+      }
     }
 
     await db.execute("UPDATE captures SET processed = 1 WHERE id = ?", [id]);

@@ -6,6 +6,7 @@ import Inbox from "./views/Inbox";
 import Commitments from "./views/Commitments";
 import Search from "./views/Search";
 import { processBacklog, processCapture } from "./lib/processor";
+import { backfillEmbeddings } from "./lib/embeddings";
 import "./App.css";
 
 const NAV = [
@@ -20,7 +21,9 @@ export default function App() {
   // any backlog on launch, then process each new capture as it's saved. This
   // runs regardless of which view is open.
   useEffect(() => {
-    void processBacklog();
+    // Clear the processing backlog, then embed any captures from before Phase 4
+    // existed (new captures get embedded inline by the processor).
+    void processBacklog().then(() => backfillEmbeddings());
     const unlisten = listen<string>("capture:saved", (e) => {
       void processCapture(e.payload);
     });
@@ -54,7 +57,7 @@ export default function App() {
           ))}
         </ul>
         <div className="sidebar-footer">
-          <span className="build-tag">Step 3 — auto-processor</span>
+          <span className="build-tag">Step 4 — local memory</span>
         </div>
       </nav>
 
