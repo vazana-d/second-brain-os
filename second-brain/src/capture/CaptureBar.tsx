@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { emit } from "@tauri-apps/api/event";
 import { getDb } from "../lib/db";
 
 /**
@@ -50,11 +51,15 @@ export default function CaptureBar() {
     savingRef.current = true;
     try {
       const db = await getDb();
+      const id = crypto.randomUUID();
       await db.execute(
         "INSERT INTO captures (id, raw_content, source, processed) VALUES (?, ?, ?, 0)",
-        [crypto.randomUUID(), text, "quick_bar"],
+        [id, text, "quick_bar"],
       );
       await hide(); // only dismiss once the row is safely written
+      // Fire-and-forget: the main window picks this up and processes it in the
+      // background. Never awaited — capture must stay instant.
+      void emit("capture:saved", id);
     } catch (err) {
       // Never lose a capture silently: log it and keep the bar open with the
       // text intact so the dump can be retried.

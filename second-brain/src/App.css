@@ -181,6 +181,146 @@ html, body, #root {
   line-height: 1.6;
 }
 
+/* ── Inbox (Phase 3) ────────────────────────────────────────── */
+.inbox {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.inbox-header {
+  margin-bottom: 20px;
+}
+
+.inbox-header h1 {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.inbox-sub {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.inbox-banner {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  color: var(--text-primary);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 18px;
+}
+
+.inbox-banner code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--bg-elevated);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.capture-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.capture-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+}
+
+.capture-card-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.capture-time {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.capture-source {
+  font-size: 10.5px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  background: var(--bg-elevated);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.capture-raw {
+  color: var(--text-primary);
+  font-size: 14.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.capture-status {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+
+.capture-status--muted {
+  color: var(--text-muted);
+}
+
+.extracted {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.extracted-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.extracted-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  width: fit-content;
+}
+
+.extracted-label--task { color: #60a5fa; }
+.extracted-label--commitment { color: var(--color-soon); }
+.extracted-label--idea { color: var(--color-clear); }
+
+.extracted-items {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.extracted-item {
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  padding-left: 12px;
+  border-left: 2px solid var(--border);
+  line-height: 1.45;
+}
+
+.extracted-item--task { border-left-color: #60a5fa; }
+.extracted-item--commitment { border-left-color: var(--color-soon); }
+.extracted-item--idea { border-left-color: var(--color-clear); }
+
 /* ── Scrollbar ──────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

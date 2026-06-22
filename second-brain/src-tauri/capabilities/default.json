@@ -10,6 +10,7 @@
     "fs:default",
     "notification:default",
     "clipboard-manager:default",
-    "global-shortcut:default"
+    "global-shortcut:default",
+    "sql:allow-execute"
   ]
 }

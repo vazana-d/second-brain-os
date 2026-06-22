@@ -1,8 +1,11 @@
+import { useEffect } from "react";
 import { NavLink, Route, Routes } from "react-router-dom";
+import { listen } from "@tauri-apps/api/event";
 import Today from "./views/Today";
 import Inbox from "./views/Inbox";
 import Commitments from "./views/Commitments";
 import Search from "./views/Search";
+import { processBacklog, processCapture } from "./lib/processor";
 import "./App.css";
 
 const NAV = [
@@ -13,6 +16,19 @@ const NAV = [
 ];
 
 export default function App() {
+  // The main window is always alive, so it owns background processing: clear
+  // any backlog on launch, then process each new capture as it's saved. This
+  // runs regardless of which view is open.
+  useEffect(() => {
+    void processBacklog();
+    const unlisten = listen<string>("capture:saved", (e) => {
+      void processCapture(e.payload);
+    });
+    return () => {
+      void unlisten.then((f) => f());
+    };
+  }, []);
+
   return (
     <div className="app-shell">
       {/* ── Sidebar ─────────────────────────────────── */}
@@ -38,7 +54,7 @@ export default function App() {
           ))}
         </ul>
         <div className="sidebar-footer">
-          <span className="build-tag">Step 2 — capture bar</span>
+          <span className="build-tag">Step 3 — auto-processor</span>
         </div>
       </nav>
 
