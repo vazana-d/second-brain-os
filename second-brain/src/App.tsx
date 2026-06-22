@@ -57,7 +57,7 @@ export default function App() {
           ))}
         </ul>
         <div className="sidebar-footer">
-          <span className="build-tag">Step 4 — local memory</span>
+          <span className="build-tag">Step 5 — loop-closer</span>
         </div>
       </nav>
 

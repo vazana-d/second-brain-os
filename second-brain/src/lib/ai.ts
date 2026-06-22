@@ -41,6 +41,14 @@ export interface Extraction {
   ideas: ExtractedIdea[];
   people: ExtractedPerson[];
   suggested_new_project: { name: string } | null;
+  /** ids of pre-existing OPEN commitments that THIS capture clearly closes. */
+  fulfilled_commitment_ids: string[];
+}
+
+/** A pre-existing open commitment the model may detect as now-fulfilled. */
+export interface OpenCommitment {
+  id: string;
+  description: string;
 }
 
 /** The key from second-brain/.env, or null if it hasn't been filled in. */
@@ -93,14 +101,18 @@ function buildPrompt(
   rawContent: string,
   projects: { id: string; name: string }[],
   context: string[],
+  openCommitments: OpenCommitment[],
 ): string {
   const projectList = projects.length
     ? projects.map((p) => `- ${p.name} (${p.id})`).join("\n")
     : "(none yet)";
   const pastContext = context.length ? context.join("\n") : "(none)";
+  const openList = openCommitments.length
+    ? openCommitments.map((c) => `- (${c.id}) ${c.description}`).join("\n")
+    : "(none)";
 
-  // Adapted from BUILD_PLAN §7. RELEVANT PAST CONTEXT stays empty until the
-  // Phase 4 sqlite-vec retrieval is wired in.
+  // Adapted from BUILD_PLAN §7. RELEVANT PAST CONTEXT is filled from Phase 4
+  // sqlite-vec-style retrieval; OPEN COMMITMENTS drives Phase 5 auto-fulfillment.
   return `You are the processing engine of a personal "second brain". The user dumps raw,
 unstructured thoughts; you extract structured meaning. Be precise and conservative
 — only extract what's actually there. Never invent.
@@ -111,6 +123,9 @@ ${projectList}
 RELEVANT PAST CONTEXT:
 ${pastContext}
 
+OPEN COMMITMENTS (promises the user has not yet closed):
+${openList}
+
 RAW INPUT:
 """${rawContent}"""
 
@@ -120,12 +135,25 @@ Return ONLY valid JSON in exactly this shape (use [] or null when something is a
   "commitments": [{ "description": string, "person": string|null, "implied_deadline": string|null, "detected_phrase": string|null }],
   "ideas":       [{ "content": string, "topic": string|null }],
   "people":      [{ "name": string, "context": string|null }],
-  "suggested_new_project": { "name": string } | null
+  "suggested_new_project": { "name": string } | null,
+  "fulfilled_commitment_ids": [ string ]
 }
 
-COMMITMENT DETECTION — catch implicit promises:
-"I'll send / share / get back to / follow up / circle back", "let me check and tell you",
-"I should reach out to…", "I need to get X to Y by Z". These are dropped threads. Catch every one.`;
+COMMITMENT DETECTION — catch every first-person promise or intention, whether made
+to someone else OR to yourself:
+- to others: "I'll send / share / get back to / follow up / circle back", "let me check
+  and tell you", "I should reach out to…", "I need to get X to Y by Z".
+- to yourself: "I'll feed the cat", "I'll call the dentist", "I need to renew the insurance".
+Set "person" to the other person if there is one, or null for a self-promise. These are
+open loops — catch every one.
+A first-person promise/intention is a COMMITMENT, not a task — do not also list it under
+"tasks". Reserve "tasks" for to-dos that aren't phrased as a promise (e.g. "buy milk").
+
+AUTO-FULFILLMENT — "fulfilled_commitment_ids":
+Return the ids of any OPEN COMMITMENTS above that THIS input clearly closes — e.g.
+"sent Dana the report" closes "(id) I'll send Dana the report". Be conservative:
+only include an id when the input plainly indicates that promise is now done. Copy
+ids exactly as given; never invent an id. Use [] if none apply.`;
 }
 
 /** Defensive parse: tolerate stray prose or ```json fences around the object. */
@@ -153,6 +181,9 @@ function normalize(raw: unknown): Extraction {
       snp && typeof snp.name === "string" && snp.name.trim()
         ? { name: snp.name.trim() }
         : null,
+    fulfilled_commitment_ids: arr<unknown>(o.fulfilled_commitment_ids)
+      .filter((x): x is string => typeof x === "string" && x.trim().length > 0)
+      .map((x) => x.trim()),
   };
 }
 
@@ -160,6 +191,7 @@ export async function extractEntities(
   rawContent: string,
   projects: { id: string; name: string }[],
   context: string[] = [],
+  openCommitments: OpenCommitment[] = [],
 ): Promise<Extraction> {
   const apiKey = getApiKey();
   if (!apiKey) {
@@ -174,7 +206,7 @@ export async function extractEntities(
   });
 
   const result = await withRateLimitRetry(
-    () => model.generateContent(buildPrompt(rawContent, projects, context)),
+    () => model.generateContent(buildPrompt(rawContent, projects, context, openCommitments)),
     "extraction",
   );
   return normalize(parseJson(result.response.text()));

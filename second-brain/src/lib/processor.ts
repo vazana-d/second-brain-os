@@ -96,6 +96,14 @@ export async function processCapture(id: string): Promise<void> {
       "SELECT id, name FROM projects WHERE status = 'active'",
     );
 
+    // Pre-existing open commitments (not this capture's own) — the model checks
+    // whether this capture closes any of them (Phase 5 auto-fulfillment).
+    const openCommitments = await db.select<{ id: string; description: string }[]>(
+      "SELECT id, description FROM commitments WHERE status = 'open' AND capture_id != ?",
+      [id],
+    );
+    const openCommitmentIds = new Set(openCommitments.map((c) => c.id));
+
     // Embed the capture once, up front: the same vector both grounds extraction
     // (Phase 4) and gets stored for future search — no second identical embed.
     // Best effort: if embedding fails, extract without context rather than block.
@@ -109,7 +117,7 @@ export async function processCapture(id: string): Promise<void> {
       console.error("embedding/retrieval failed for", id, err);
     }
 
-    const ex = await extractEntities(cap.raw_content, projects, context);
+    const ex = await extractEntities(cap.raw_content, projects, context, openCommitments);
 
     // Disposable derived rows: clear this capture's, then regenerate.
     await db.execute("DELETE FROM tasks WHERE capture_id = ?", [id]);
@@ -154,6 +162,17 @@ export async function processCapture(id: string): Promise<void> {
 
     for (const p of ex.people) {
       if (p.name?.trim()) await upsertPerson(db, p.name.trim(), p.context ?? null);
+    }
+
+    // Auto-fulfillment: close any pre-existing open commitment this capture
+    // satisfied. Validate ids against the set we actually sent so a hallucinated
+    // id can't touch the wrong row; the status guard keeps it idempotent.
+    for (const cid of ex.fulfilled_commitment_ids) {
+      if (!openCommitmentIds.has(cid)) continue;
+      await db.execute(
+        "UPDATE commitments SET status = 'fulfilled', fulfilled_at = datetime('now') WHERE id = ? AND status = 'open'",
+        [cid],
+      );
     }
 
     // Persist the vector computed above so future captures (and Search) can
